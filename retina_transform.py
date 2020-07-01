@@ -41,25 +41,27 @@ def pyramid(im, sigma=1.0, prNum=6.0):
     return pyramids
 
 
-def foveat_img(im, fixs=None):
+def foveat_img(im, sigma=0.248, fixs=None):
     """
     im: input image (cv2 style)
     fixs: sequences of fixations of form [(x1, y1), (x2, y2), ...]
 
     This function outputs the foveated image with given input image and fixations.
+    [Valerio] The size of the image will change the way the foveation is applied, but not sure in what way.
+    [Valerio] Sigma increases the blurring
     """
     if fixs is None:
         fixs = [(im.shape[1] // 2, im.shape[0] // 2)]
 
-    sigma = 0.248
+    # sigma = 0.248
     prNum = 6
     As = pyramid(im, sigma, prNum)
     height, width, _ = im.shape
 
     # compute coef
-    p = 7.5
-    k = 3
-    alpha = 2.5
+    p = 7.5  # not sure what does this do but doesn't have to do with the center
+    k = 3 + 50  # this seems to make the center more in focus even with higher blurring
+    alpha = 2.5  # this changes the type of blurring somehow
 
     x = np.arange(0, width, 1, dtype=np.float32)
     y = np.arange(0, height, 1, dtype=np.float32)
@@ -107,7 +109,7 @@ def foveat_img(im, fixs=None):
         if np.sum(ind) > 0:
             Ms[i][ind] = Bs[i][ind]
 
-    print('num of full-res pixel', np.sum(Ms[0] == 1))
+    # print('num of full-res pixel', np.sum(Ms[0] == 1))
     # generate periphery image
     im_fov = np.zeros_like(As[0], dtype=np.float32)
     for M, A in zip(Ms, As):
@@ -117,18 +119,26 @@ def foveat_img(im, fixs=None):
     im_fov = im_fov.astype(np.uint8)
     return im_fov
 
+import numpy as np
+def checkerboard(boardsize, squaresize):
+    return np.fromfunction(lambda i, j: (i//squaresize[0]) % 2 != (j//squaresize[1]) % 2, boardsize).astype(np.uint8)
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Wrong format: python retina_transform.py [image_path]")
-        exit(-1)
+    # if len(sys.argv) != 2:
+    #     print("Wrong format: python retina_transform.py [image_path]")
+    #     exit(-1)
 
     im_path = sys.argv[1]
-    im = cv2.imread(im_path)
+
     # # im = cv2.resize(im, (512, 320), cv2.INTER_CUBIC)
     # xc, yc = int(im.shape[1]/2), int(im.shape[0]/2)
 
     # im = foveat_img(im, [(xc, yc)])
-    im = foveat_img(im)
+    ch = checkerboard((224, 224), (15, 15))
+    im = np.repeat(ch[:, :, np.newaxis], 3, axis=2)
+    cv2.imwrite('./prova.jpg', im*255)
+    # im = cv2.imread(im_path)
+    ss = 1.8
+    im = foveat_img(im*255, sigma=ss)
 
-    cv2.imwrite(im_path.split('.')[0] + '_RT.jpg', im)
+    cv2.imwrite('./' + im_path.split('.')[0] + '_RT_sTTT{:2.3f}.jpg'.format(ss), im)
